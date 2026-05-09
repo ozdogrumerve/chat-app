@@ -82,22 +82,12 @@ class App:
 
     def _after_connect(self, ok: bool):
         if not ok:
-            messagebox.showerror(
-                "Bağlantı Hatası",
-                "Server'a bağlanılamadı. Server'ın çalıştığından emin olun."
-            )
+            messagebox.showerror("Bağlantı Hatası", "Server'a bağlanılamadı.")
             return
 
         self._client.send(self.username)
+        # Chat ekranını BURADA AÇMA, _process_message'da açacağız
 
-        self._login_screen.place_forget()
-        self._chat = ChatScreen(
-            self.root,
-            username=self.username,
-            protocol=self.protocol,
-            on_send=self._on_send,
-            on_disconnect=self._on_user_disconnect
-        )
 
     # ── Mesaj alma ───────────────────────────────────────────
 
@@ -107,13 +97,31 @@ class App:
 
     def _process_message(self, raw: str):
         if not self._chat:
+            if "zaten sohbet odasinda" in raw:
+                self._client.disconnect()
+                self._client = None
+                messagebox.showerror("Hata", "Bu kullanıcı adı zaten kullanımda!")
+                return
+            
+            if "Hosgeldiniz" in raw and "baglisiniz" in raw:
+                # Hoşgeldin mesajı geldi, şimdi chat ekranını aç
+                self._login_screen.place_forget()
+                self._chat = ChatScreen(
+                    self.root,
+                    username=self.username,
+                    protocol=self.protocol,
+                    on_send=self._on_send,
+                    on_disconnect=self._on_user_disconnect
+                )
+                # Hoşgeldin mesajını chat'e yaz
+                parsed = detect_message_type(raw)
+                self._chat.append_message(parsed)
+            return
+
+        if "Kullanici adinizi giriniz" in raw:
             return
 
         parsed = detect_message_type(raw)
-
-        if parsed is None:
-            return
-
         if parsed["type"] == "userlist":
             self._chat.update_users(parsed["users"])
             return
