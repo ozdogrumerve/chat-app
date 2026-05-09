@@ -1,0 +1,9 @@
+# TChat – Gereksinimler
+# Python 3.8+ ile çalışır.
+# Tüm bağımlılıklar Python standart kütüphanesidir; ek kurulum gerekmez.
+
+# socket    – ağ iletişimi
+# threading – eş zamanlı işlem
+# tkinter   – GUI (Python ile birlikte gelir)
+# re        – regex (mesaj parse)
+# datetime  – zaman damgası
