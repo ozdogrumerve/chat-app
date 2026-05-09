@@ -4,6 +4,7 @@
 
 import sys
 import os
+sys.dont_write_bytecode = True
 
 # Proje kökünü Python path'e ekle
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
