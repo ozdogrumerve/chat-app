@@ -1,141 +1,109 @@
-# TChat — TCP/UDP Chat Uygulaması
+# ◈ TChat
 
-> Koyu & modern Tkinter arayüzlü, TCP ve UDP protokollerini aynı anda destekleyen Python sohbet uygulaması.
+> A real-time, terminal-style chat application supporting both TCP and UDP protocols.
+
+![Python](https://img.shields.io/badge/Python-3.8+-3776AB?style=flat-square&logo=python&logoColor=white)
+![Tkinter](https://img.shields.io/badge/Tkinter-GUI-FF6B6B?style=flat-square)
+![TCP](https://img.shields.io/badge/TCP-12345-4f8ef7?style=flat-square)
+![UDP](https://img.shields.io/badge/UDP-12346-f7a24f?style=flat-square)
+![No Dependencies](https://img.shields.io/badge/dependencies-none-3ecf8e?style=flat-square)
 
 ---
 
-## ✨ Özellikler
+## Tech Stack
 
-| Özellik | Açıklama |
+| Layer | Technology |
 |---|---|
-| **Dual-protocol** | TCP ve UDP istemcileri aynı anda aynı sunucuya bağlanabilir |
-| **Zaman damgası** | Her mesajın yanında `HH:MM` formatında saat gösterilir |
-| **Online kullanıcılar** | Sol panelde gerçek zamanlı olarak güncellenen kullanıcı listesi |
-| **Private mesaj** | `@kullanıcı mesaj` yazarak özel mesaj gönderme |
-| **Protokol etiketi** | Her mesajın yanında `[TCP]` veya `[UDP]` rozeti |
-| **Bağlantı yönetimi** | Kopuk bağlantı tespiti, düzgün ayrılma protokolü |
-| **Koyu tema** | `#0d0f14` tabanlı, vurgu renkleriyle modern arayüz |
+| Language | Python 3.8+ |
+| GUI | Tkinter |
+| Networking | `socket` — TCP & UDP |
+| Concurrency | `threading` |
+| Message Parsing | `re` (regex) |
+| No external packages | stdlib only |
 
 ---
 
-## 📁 Proje Yapısı
+## Features
 
-```
-chat-app/
-├── README.md
-├── requirements.txt
-│
-├── server/
-│   └── server.py              # TCP + UDP hybrid server
-│
-└── client/
-    ├── main.py                # Giriş noktası
-    ├── app.py                 # Ana Tkinter kontrolcüsü
-    │
-    ├── network/
-    │   ├── tcp_client.py      # TCP bağlantı yöneticisi
-    │   └── udp_client.py      # UDP bağlantı yöneticisi
-    │
-    ├── gui/
-    │   ├── login_screen.py    # Giriş ekranı
-    │   ├── chat_screen.py     # Ana sohbet ekranı
-    │   ├── user_list.py       # Online kullanıcılar paneli
-    │   └── theme.py           # Renk, font, boyut sabitleri
-    │
-    └── utils/
-        └── message.py         # Mesaj parse & format yardımcıları
-```
+- Simultaneous TCP and UDP client support
+- Public chat room visible to all connected users
+- Private messaging — type `@username message`
+- Live online user list with protocol badge (TCP / UDP)
+- Duplicate username prevention
+- Dark, modern UI
 
 ---
 
-## 🚀 Kurulum ve Çalıştırma
+## Getting Started
 
-### Gereksinimler
+```bash
+git clone https://github.com/user/tchat.git
+cd tchat
+```
 
-- Python **3.8+**
-- Tkinter (Python ile birlikte gelir; Linux'ta `sudo apt install python3-tk`)
+No install step needed — zero external dependencies.
 
-### 1. Sunucuyu başlat
+### 1. Start the server
 
 ```bash
 python server/server.py
 ```
 
-### 2. İstemciyi başlat (istediğin kadar terminal aç)
+Listens on:
+- TCP → `127.0.0.1:12345`
+- UDP → `127.0.0.1:12346`
+
+### 2. Start a client
 
 ```bash
 python client/main.py
 ```
 
-- Protokol seç: **TCP** veya **UDP**
-- Host ve portları gir (varsayılan `127.0.0.1 / 12345 / 12346`)
-- Kullanıcı adını gir → **BAĞLAN**
+Pick a protocol, enter a username, hit **CONNECT**.
 
 ---
 
-## 💬 Kullanım
+## Private Messages
 
-| Eylem | Nasıl |
-|---|---|
-| Mesaj gönder | Input kutusuna yaz → Enter veya GÖNDER butonu |
-| Private mesaj | `@kullanıcı mesaj içeriği` yaz |
-| Kullanıcıya PM | Sol panelde kullanıcıya tıkla → input'a `@kullanıcı` otomatik eklenir |
-| Odadan ayrıl | Sağ üstteki **AYRIL** butonu |
+Type in the message box:
+
+```
+@username hello there
+```
+
+Only the target user receives it. You can also click a username in the sidebar to auto-fill.
 
 ---
 
-## 🏗️ Mimari
+## Project Structure
 
 ```
-┌─────────────┐     TCP (12345)     ┌──────────────┐
-│  TCP Client │ ─────────────────── │              │
-└─────────────┘                     │    Server    │
-                                    │              │
-┌─────────────┐     UDP (12346)     │  (server.py) │
-│  UDP Client │ ─────────────────── │              │
-└─────────────┘                     └──────────────┘
-```
-
-**Server:** Her TCP istemcisi için ayrı thread. UDP mesajları da thread havuzunda işlenir. Tüm broadcast işlemleri `threading.Lock` ile thread-safe.
-
-**Client:** GUI thread (Tkinter) ve network thread birbirinden ayrılmıştır. `root.after(0, ...)` ile thread-safe GUI güncellemesi yapılır.
-
----
-
-## 📡 Protokol
-
-### Sunucu → İstemci Mesaj Formatları
-
-```
-# Normal mesaj
-KullaniciAdi[TCP] : mesaj içeriği
-
-# Private mesaj
-[PM|Hedef] Gonderen[TCP] : mesaj içeriği
-
-# Katılım / ayrılış
-KullaniciAdi - [TCP] ile sohbet odasina katildi.
-KullaniciAdi - [UDP] sohbet odasindan ayrildi
-
-# Kullanıcı listesi güncellemesi
-/userlist Ad1[TCP],Ad2[UDP],Ad3[TCP]
-```
-
-### İstemci → Sunucu
-
-```
-# Normal mesaj
-mesaj içeriği
-
-# Private mesaj
-/pm HedefKullanici mesaj içeriği
-
-# UDP ayrılış
-Gorusuruz
+tchat/
+├── server/
+│   └── server.py           # TCP + UDP hybrid server
+├── client/
+│   ├── main.py             # Entry point
+│   ├── app.py              # Main app controller
+│   ├── gui/
+│   │   ├── chat_screen.py  # Chat UI
+│   │   ├── login_screen.py # Login UI
+│   │   ├── user_list.py    # Online users sidebar
+│   │   └── theme.py        # Colors & fonts
+│   ├── network/
+│   │   ├── tcp_client.py   # TCP connection manager
+│   │   └── udp_client.py   # UDP connection manager
+│   └── utils/
+│       └── message.py      # Message parser & formatter
+└── requirements.txt
 ```
 
 ---
 
-## 📄 Lisans
+## TCP vs UDP
 
-MIT
+| | TCP | UDP |
+|---|---|---|
+| Connection | Connection-based | Connectionless |
+| Reliability | High | Lower, but faster |
+| Disconnect detection | Automatic | Manual (`Gorusuruz` signal) |
+| Port | 12345 | 12346 |
