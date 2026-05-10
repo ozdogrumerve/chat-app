@@ -135,7 +135,7 @@ def remove_tcp_client(client_socket):
         client_socket.close()
     except Exception:
         pass
-    msg = f"{username} - left the chat room [TCP]"
+    msg = f"{username} [TCP] left the chat room"
     print(msg)
     broadcast(msg)
     broadcast_userlist()
@@ -177,7 +177,7 @@ def handle_tcp_client(client_socket, client_address):
         client_socket.send(
             f"Welcome {username}, connected via [TCP]!\n".encode("utf-8")
         )
-        join_msg = f"{username} -  joined the chat room via [TCP]."
+        join_msg = f"{username} - [TCP] joined the chat room."
         print(join_msg)
         broadcast(join_msg, sender_type="TCP", sender_socket=client_socket)
         broadcast_userlist()
@@ -257,7 +257,7 @@ def remove_udp_client(client_address):
             return
         username = udp_clients[client_address]["username"]
         del udp_clients[client_address]
-    msg = f"{username} - left the chat room [UDP]"
+    msg = f"{username} [UDP] left the chat room"
     print(msg)
     broadcast(msg, sender_type="UDP", sender_address=client_address)
     broadcast_userlist()
@@ -293,8 +293,9 @@ def handle_udp_message(message: bytes, client_address):
         # Registration successful — welcome and notify others
         udp_server_socket.sendto(
             f"Welcome {username}, connected via [UDP]!\n".encode("utf-8"),
+            client_address
         )
-        join_msg = f"{username} - joined the chat room via [UDP]."
+        join_msg = f"{username} - [UDP] joined the chat room."
         print(join_msg)
         broadcast(join_msg, sender_type="UDP", sender_address=client_address)
         broadcast_userlist()

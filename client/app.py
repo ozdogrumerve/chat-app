@@ -102,14 +102,14 @@ class App:
 
         # Chat screen not open yet — we're still in the login/registration phase
         if not self._chat:
-            if "zaten sohbet odasinda" in raw:
+            if "already taken" in raw:
                 # Username already taken — disconnect and show error
                 self._client.disconnect()
                 self._client = None
                 messagebox.showerror("Error", "This username is already in use!")
                 return
 
-            if "Hosgeldiniz" in raw and "baglisiniz" in raw:
+            if "Welcome" in raw and "connected via" in raw:
                 # Welcome message received — registration successful, open chat screen
                 self._login_screen.place_forget()
                 self._chat = ChatScreen(
@@ -125,7 +125,7 @@ class App:
             return
 
         # Filter out server prompts that shouldn't appear in chat
-        if "Kullanici adinizi giriniz" in raw:
+        if "Enter your username" in raw:
             return
 
         parsed = detect_message_type(raw)
