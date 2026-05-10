@@ -135,7 +135,7 @@ def remove_tcp_client(client_socket):
         client_socket.close()
     except Exception:
         pass
-    msg = f"{username} - [TCP] sohbet odasindan ayrildi"
+    msg = f"{username} - left the chat room [TCP]"
     print(msg)
     broadcast(msg)
     broadcast_userlist()
@@ -146,7 +146,7 @@ def handle_tcp_client(client_socket, client_address):
     try:
         # ── Username registration loop ────────────────────────
         while True:
-            client_socket.send("Kullanici adinizi giriniz: \n".encode("utf-8"))
+            client_socket.send("Enter your username: \n".encode("utf-8"))
             data = client_socket.recv(BUFFER_SIZE)
             if not data:
                 return  # client disconnected before registering
@@ -167,8 +167,7 @@ def handle_tcp_client(client_socket, client_address):
             if used:
                 # Notify client that the username is taken and ask again
                 warning = (
-                    "Bu kullanici zaten sohbet odasinda, "
-                    "lutfen baska bir kullanici adi giriniz!\n"
+                    "This username is already taken, please choose another one.\n"
                 )
                 client_socket.send(warning.encode("utf-8"))
             else:
@@ -176,9 +175,9 @@ def handle_tcp_client(client_socket, client_address):
 
         # ── Welcome and join notification ─────────────────────
         client_socket.send(
-            f"Hosgeldiniz {username}, [TCP] ile baglisiniz!\n".encode("utf-8")
+            f"Welcome {username}, connected via [TCP]!\n".encode("utf-8")
         )
-        join_msg = f"{username} - [TCP] ile sohbet odasina katildi."
+        join_msg = f"{username} -  joined the chat room via [TCP]."
         print(join_msg)
         broadcast(join_msg, sender_type="TCP", sender_socket=client_socket)
         broadcast_userlist()
@@ -225,7 +224,7 @@ def _handle_pm(raw_cmd: str, sender: str, proto: str,
 
     # If target not found, notify the sender
     if not ok:
-        err = f"[PM] Kullanıcı bulunamadı: {target}"
+        err = f"[PM] User not found: {target}"
         if sender_socket:
             try:
                 sender_socket.send((err + "\n").encode("utf-8"))
@@ -258,7 +257,7 @@ def remove_udp_client(client_address):
             return
         username = udp_clients[client_address]["username"]
         del udp_clients[client_address]
-    msg = f"{username} - [UDP] sohbet odasindan ayrildi"
+    msg = f"{username} - left the chat room [UDP]"
     print(msg)
     broadcast(msg, sender_type="UDP", sender_address=client_address)
     broadcast_userlist()
@@ -287,19 +286,15 @@ def handle_udp_message(message: bytes, client_address):
 
         if used:
             # Username taken — notify and wait for another attempt
-            warning = (
-                "Bu kullanici zaten sohbet odasinda, "
-                "lutfen baska bir kullanici adi giriniz!\n"
-            )
+            warning = "This username is already taken, please choose another one.\n"
             udp_server_socket.sendto(warning.encode("utf-8"), client_address)
             return
 
         # Registration successful — welcome and notify others
         udp_server_socket.sendto(
-            f"Hosgeldiniz {username}, [UDP] ile baglisiniz!\n".encode("utf-8"),
-            client_address
+            f"Welcome {username}, connected via [UDP]!\n".encode("utf-8"),
         )
-        join_msg = f"{username} - [UDP] ile sohbet odasina katildi."
+        join_msg = f"{username} - joined the chat room via [UDP]."
         print(join_msg)
         broadcast(join_msg, sender_type="UDP", sender_address=client_address)
         broadcast_userlist()
@@ -371,4 +366,3 @@ hb_thread.start()
 # Keep the main thread alive
 while True:
     threading.Event().wait(1)
-    
