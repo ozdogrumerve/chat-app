@@ -47,8 +47,6 @@ class UDPClient:
                 return
             self._connected = False
         try:
-            # Server'a ayrılma sinyali gönder
-            self.socket.sendto("Gorusuruz".encode("utf-8"), (self.host, self.port))
             self.socket.close()
         except Exception:
             pass

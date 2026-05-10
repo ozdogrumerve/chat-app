@@ -5,6 +5,7 @@
 
 import socket
 import threading
+import time
 
 HOST        = "127.0.0.1"
 TCP_PORT    = 12345
@@ -17,6 +18,25 @@ clients_lock = threading.Lock()
 
 
 # ── Yardımcı ─────────────────────────────────────────────────
+
+# UDP clientlar için son görülme zamanı
+udp_last_seen = {}  # address → timestamp
+
+def udp_heartbeat_checker():
+    """Her 10 saniyede bir 30 saniyedir sessiz UDP clientları atar."""
+    while True:
+        time.sleep(30)
+        now = time.time()
+        stale = []
+        with clients_lock:
+            for addr in list(udp_clients.keys()):
+                last = udp_last_seen.get(addr, 0)
+                if now - last > 60:
+                    stale.append(addr)
+        for addr in stale:
+            print(f"[UDP] Timeout: {addr}")
+            remove_udp_client(addr)
+
 
 def username_exists(username: str) -> bool:
     ulow = username.lower()
@@ -259,14 +279,13 @@ def handle_udp_message(message: bytes, client_address):
         print(join_msg)
         broadcast(join_msg, sender_type="UDP", sender_address=client_address)
         broadcast_userlist()
+        udp_last_seen[client_address] = time.time()
         return
 
     with clients_lock:
         username = udp_clients[client_address]["username"]
-
-    if text == "Gorusuruz":
-        remove_udp_client(client_address)
-        return
+    
+    udp_last_seen[client_address] = time.time()
 
     # Private mesaj
     if text.startswith("/pm "):
@@ -312,6 +331,10 @@ tcp_thread.start()
 
 udp_thread = threading.Thread(target=listen_udp_clients, daemon=True)
 udp_thread.start()
+
+
+hb_thread = threading.Thread(target=udp_heartbeat_checker, daemon=True)
+hb_thread.start()   
 
 # Sürekli çalış
 while True:
