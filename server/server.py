@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────────
 #  server/server.py  –  TCP + UDP Hybrid Server
-#  Özellikler: broadcast, private msg, userlist
+#  Features: broadcast, private messaging, user list
 # ─────────────────────────────────────────────
 
 import socket
@@ -12,33 +12,40 @@ TCP_PORT    = 12345
 UDP_PORT    = 12346
 BUFFER_SIZE = 4096
 
-tcp_clients  = {}   # socket → {username, address, protocol}
+tcp_clients  = {}   # socket  → {username, address, protocol}
 udp_clients  = {}   # address → {username, address, protocol}
-clients_lock = threading.Lock()
+clients_lock = threading.Lock()  # shared lock for both client dicts
 
 
-# ── Yardımcı ─────────────────────────────────────────────────
+# ── UDP Heartbeat ─────────────────────────────────────────────
 
-# UDP clientlar için son görülme zamanı
-udp_last_seen = {}  # address → timestamp
+# Tracks the last time a message was received from each UDP client
+udp_last_seen = {}  # address → timestamp (float)
 
 def udp_heartbeat_checker():
-    """Her 10 saniyede bir 30 saniyedir sessiz UDP clientları atar."""
+    """Every 30 seconds, remove UDP clients that have been silent for over 60 seconds."""
     while True:
         time.sleep(30)
         now = time.time()
         stale = []
+
+        # Collect addresses of clients that have timed out
         with clients_lock:
             for addr in list(udp_clients.keys()):
                 last = udp_last_seen.get(addr, 0)
                 if now - last > 60:
                     stale.append(addr)
+
+        # Remove stale clients outside the lock to avoid deadlocks
         for addr in stale:
             print(f"[UDP] Timeout: {addr}")
             remove_udp_client(addr)
 
 
+# ── Helpers ───────────────────────────────────────────────────
+
 def username_exists(username: str) -> bool:
+    """Check if a username is already taken (case-insensitive)."""
     ulow = username.lower()
     for info in tcp_clients.values():
         if info["username"].lower() == ulow:
@@ -50,7 +57,7 @@ def username_exists(username: str) -> bool:
 
 
 def get_user_list() -> list:
-    """Tüm online kullanıcıları 'Ad[PROTO]' formatında döndürür."""
+    """Return all online users in 'Name[PROTO]' format."""
     result = []
     for info in tcp_clients.values():
         result.append(f"{info['username']}[TCP]")
@@ -60,7 +67,7 @@ def get_user_list() -> list:
 
 
 def broadcast_userlist():
-    """Tüm clientlara güncel kullanıcı listesini gönderir."""
+    """Send the current user list to all connected clients."""
     with clients_lock:
         users = get_user_list()
     msg = "/userlist " + ",".join(users)
@@ -69,11 +76,12 @@ def broadcast_userlist():
 
 def broadcast(message: str, sender_type=None,
               sender_socket=None, sender_address=None):
-    """Mesajı gönderen hariç herkese yollar."""
+    """Send a message to all clients except the original sender."""
     with clients_lock:
         tcp_list = list(tcp_clients.items())
         udp_list = list(udp_clients.items())
 
+    # Send to all TCP clients except the sender
     for sock, info in tcp_list:
         if sender_type == "TCP" and sock == sender_socket:
             continue
@@ -82,6 +90,7 @@ def broadcast(message: str, sender_type=None,
         except Exception:
             remove_tcp_client(sock)
 
+    # Send to all UDP clients except the sender
     for addr, info in udp_list:
         if sender_type == "UDP" and addr == sender_address:
             continue
@@ -92,8 +101,9 @@ def broadcast(message: str, sender_type=None,
 
 
 def send_to_username(target_username: str, message: str) -> bool:
-    """Belirli bir kullanıcıya mesaj gönderir. Başarılıysa True."""
+    """Send a message to a specific user by username. Returns True on success."""
     with clients_lock:
+        # Search TCP clients first
         for sock, info in tcp_clients.items():
             if info["username"].lower() == target_username.lower():
                 try:
@@ -101,6 +111,7 @@ def send_to_username(target_username: str, message: str) -> bool:
                     return True
                 except Exception:
                     return False
+        # Then search UDP clients
         for addr, info in udp_clients.items():
             if info["username"].lower() == target_username.lower():
                 try:
@@ -108,12 +119,13 @@ def send_to_username(target_username: str, message: str) -> bool:
                     return True
                 except Exception:
                     return False
-    return False
+    return False  # user not found
 
 
 # ── TCP ──────────────────────────────────────────────────────
 
 def remove_tcp_client(client_socket):
+    """Remove a TCP client, close their socket, and notify others."""
     with clients_lock:
         if client_socket not in tcp_clients:
             return
@@ -130,13 +142,14 @@ def remove_tcp_client(client_socket):
 
 
 def handle_tcp_client(client_socket, client_address):
+    """Handle the full lifecycle of a TCP client connection."""
     try:
-        # Kullanıcı adı alma döngüsü
+        # ── Username registration loop ────────────────────────
         while True:
             client_socket.send("Kullanici adinizi giriniz: \n".encode("utf-8"))
             data = client_socket.recv(BUFFER_SIZE)
             if not data:
-                return
+                return  # client disconnected before registering
             username = data.decode("utf-8").strip()
             if not username:
                 continue
@@ -144,6 +157,7 @@ def handle_tcp_client(client_socket, client_address):
             with clients_lock:
                 used = username_exists(username)
                 if not used:
+                    # Register the client
                     tcp_clients[client_socket] = {
                         "username" : username,
                         "address"  : client_address,
@@ -151,38 +165,39 @@ def handle_tcp_client(client_socket, client_address):
                     }
 
             if used:
+                # Notify client that the username is taken and ask again
                 warning = (
                     "Bu kullanici zaten sohbet odasinda, "
                     "lutfen baska bir kullanici adi giriniz!\n"
                 )
                 client_socket.send(warning.encode("utf-8"))
             else:
-                break
+                break  # username accepted
 
-        # Hoş geldin
+        # ── Welcome and join notification ─────────────────────
         client_socket.send(
             f"Hosgeldiniz {username}, [TCP] ile baglisiniz!\n".encode("utf-8")
         )
-
         join_msg = f"{username} - [TCP] ile sohbet odasina katildi."
         print(join_msg)
         broadcast(join_msg, sender_type="TCP", sender_socket=client_socket)
         broadcast_userlist()
 
-        # Mesaj dinleme
+        # ── Message loop ──────────────────────────────────────
         while True:
             data = client_socket.recv(BUFFER_SIZE)
             if not data:
-                break
+                break  # client disconnected
             message = data.decode("utf-8").strip()
             if not message:
                 continue
 
-            # Private mesaj komutu: /pm hedef mesaj
+            # Handle private message command
             if message.startswith("/pm "):
                 _handle_pm(message, username, "TCP", client_socket, None)
                 continue
 
+            # Broadcast public message to everyone else
             formatted = f"{username}[TCP] : {message}"
             print(formatted)
             broadcast(formatted, sender_type="TCP", sender_socket=client_socket)
@@ -190,22 +205,26 @@ def handle_tcp_client(client_socket, client_address):
     except Exception:
         pass
     finally:
+        # Always clean up, even on unexpected errors
         remove_tcp_client(client_socket)
 
 
 def _handle_pm(raw_cmd: str, sender: str, proto: str,
                sender_socket=None, sender_address=None):
-    """Private mesaj işle: /pm hedef mesaj"""
+    """Parse and deliver a private message: /pm target body"""
     parts = raw_cmd.split(" ", 2)
     if len(parts) < 3:
-        return
+        return  # malformed command, ignore
+
     target  = parts[1]
     body    = parts[2]
-    pm_msg  = f"[PM|{sender}] {sender}[{proto}] : {body}"
+
+    # Format received by the target: "[PM|sender] Sender[TCP] : body"
+    pm_msg = f"[PM|{sender}] {sender}[{proto}] : {body}"
     ok = send_to_username(target, pm_msg)
 
+    # If target not found, notify the sender
     if not ok:
-        # Sadece hata durumunda bildir
         err = f"[PM] Kullanıcı bulunamadı: {target}"
         if sender_socket:
             try:
@@ -220,6 +239,7 @@ def _handle_pm(raw_cmd: str, sender: str, proto: str,
 
 
 def accept_tcp_clients():
+    """Continuously accept incoming TCP connections and spawn a thread for each."""
     while True:
         try:
             sock, addr = tcp_server_socket.accept()
@@ -232,6 +252,7 @@ def accept_tcp_clients():
 # ── UDP ──────────────────────────────────────────────────────
 
 def remove_udp_client(client_address):
+    """Remove a UDP client and notify others."""
     with clients_lock:
         if client_address not in udp_clients:
             return
@@ -244,6 +265,7 @@ def remove_udp_client(client_address):
 
 
 def handle_udp_message(message: bytes, client_address):
+    """Handle a single incoming UDP datagram."""
     text = message.decode("utf-8").strip()
     if not text:
         return
@@ -252,7 +274,7 @@ def handle_udp_message(message: bytes, client_address):
         is_registered = client_address in udp_clients
 
     if not is_registered:
-        # İlk mesaj = kullanıcı adı
+        # ── First message = username registration ─────────────
         username = text
         with clients_lock:
             used = username_exists(username)
@@ -264,6 +286,7 @@ def handle_udp_message(message: bytes, client_address):
                 }
 
         if used:
+            # Username taken — notify and wait for another attempt
             warning = (
                 "Bu kullanici zaten sohbet odasinda, "
                 "lutfen baska bir kullanici adi giriniz!\n"
@@ -271,6 +294,7 @@ def handle_udp_message(message: bytes, client_address):
             udp_server_socket.sendto(warning.encode("utf-8"), client_address)
             return
 
+        # Registration successful — welcome and notify others
         udp_server_socket.sendto(
             f"Hosgeldiniz {username}, [UDP] ile baglisiniz!\n".encode("utf-8"),
             client_address
@@ -279,63 +303,72 @@ def handle_udp_message(message: bytes, client_address):
         print(join_msg)
         broadcast(join_msg, sender_type="UDP", sender_address=client_address)
         broadcast_userlist()
-        udp_last_seen[client_address] = time.time()
+        udp_last_seen[client_address] = time.time()  # record first seen time
         return
 
+    # ── Registered client — handle their message ──────────────
     with clients_lock:
         username = udp_clients[client_address]["username"]
-    
+
+    # Update last seen time on every message
     udp_last_seen[client_address] = time.time()
 
-    # Private mesaj
+    # Handle private message command
     if text.startswith("/pm "):
         _handle_pm(text, username, "UDP", None, client_address)
         return
 
+    # Broadcast public message to everyone else
     formatted = f"{username}[UDP] : {text}"
     print(formatted)
     broadcast(formatted, sender_type="UDP", sender_address=client_address)
 
 
 def listen_udp_clients():
+    """Continuously receive UDP datagrams and handle each in a new thread."""
     while True:
         try:
             data, addr = udp_server_socket.recvfrom(BUFFER_SIZE)
             t = threading.Thread(target=handle_udp_message, args=(data, addr), daemon=True)
             t.start()
         except ConnectionResetError:
-            continue
+            continue  # common on Windows when a UDP client disappears
         except Exception:
             continue
 
 
-# ── Başlatma ─────────────────────────────────────────────────
+# ── Startup ───────────────────────────────────────────────────
 
+# Create and bind TCP server socket
 tcp_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-tcp_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+tcp_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # allow port reuse after restart
 tcp_server_socket.bind((HOST, TCP_PORT))
 tcp_server_socket.listen()
 
+# Create and bind UDP server socket
 udp_server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 udp_server_socket.bind((HOST, UDP_PORT))
 
 print("=" * 40)
-print("  TChat Server Başlatıldı")
+print("  TChat Server Started")
 print("=" * 40)
 print(f"  TCP  →  {HOST}:{TCP_PORT}")
 print(f"  UDP  →  {HOST}:{UDP_PORT}")
 print("=" * 40)
 
+# Start TCP accept loop
 tcp_thread = threading.Thread(target=accept_tcp_clients, daemon=True)
 tcp_thread.start()
 
+# Start UDP receive loop
 udp_thread = threading.Thread(target=listen_udp_clients, daemon=True)
 udp_thread.start()
 
-
+# Start UDP heartbeat checker
 hb_thread = threading.Thread(target=udp_heartbeat_checker, daemon=True)
-hb_thread.start()   
+hb_thread.start()
 
-# Sürekli çalış
+# Keep the main thread alive
 while True:
     threading.Event().wait(1)
+    

@@ -1,13 +1,13 @@
 # ─────────────────────────────────────────────
-#  app.py  –  Ana Uygulama Kontrolcüsü
+#  app.py  –  Main Application Controller
 # ─────────────────────────────────────────────
 
 import tkinter as tk
 from tkinter import messagebox
 
-from .gui.login_screen import LoginScreen
-from .gui.chat_screen  import ChatScreen
-from .gui              import theme as T
+from .gui.login_screen   import LoginScreen
+from .gui.chat_screen    import ChatScreen
+from .gui                import theme as T
 from .network.tcp_client import TCPClient
 from .network.udp_client import UDPClient
 from .utils.message      import detect_message_type, format_private_cmd, is_private, parse_private
@@ -15,24 +15,24 @@ from .utils.message      import detect_message_type, format_private_cmd, is_priv
 
 class App:
     """
-    Tkinter uygulamasının ana kontrolcüsü.
-    Login → bağlantı kur → Chat ekranına geç.
+    Main application controller.
+    Manages the flow: Login → connect to server → open Chat screen.
     """
 
     def __init__(self):
         self.root = tk.Tk()
-        self._online_users = []  # ["Merve[TCP]", "Serhat[TCP]", ...]
+        self._online_users = []  # current user list e.g. ["Merve[TCP]", "Serhat[UDP]"]
         self._setup_window()
 
-        self.username : str       = ""
-        self.protocol : str       = ""
-        self._client  : object    = None  # TCPClient veya UDPClient
-        self._chat    : ChatScreen = None
+        self.username : str        = ""    # logged-in username
+        self.protocol : str        = ""    # "TCP" or "UDP"
+        self._client  : object     = None  # TCPClient or UDPClient instance
+        self._chat    : ChatScreen = None  # chat screen widget, None when on login
 
-        # Ekranlar
+        # Show the login screen on startup
         self._login_screen = LoginScreen(self.root, on_connect=self._on_login)
 
-    # ── Pencere ayarları ─────────────────────────────────────
+    # ── Window setup ─────────────────────────────────────────
 
     def _setup_window(self):
         self.root.title("TChat")
@@ -41,22 +41,24 @@ class App:
         self.root.minsize(700, 480)
         self.root.resizable(True, True)
 
-        # İkonu gizle (varsa yükle)
+        # Load window icon if available
         try:
             self.root.iconbitmap("assets/icon.ico")
         except Exception:
             pass
 
-        # Kapatma davranışı
+        # Handle window close button — disconnect cleanly before exit
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     # ── Login ────────────────────────────────────────────────
 
     def _on_login(self, username: str, protocol: str,
-              host: str, tcp_port: int, udp_port: int):
+                  host: str, tcp_port: int, udp_port: int):
+        """Called by LoginScreen when the user clicks Connect."""
         self.username = username
         self.protocol = protocol
 
+        # Create the appropriate client based on selected protocol
         if protocol == "TCP":
             self._client = TCPClient(
                 host, tcp_port,
@@ -70,42 +72,45 @@ class App:
                 on_disconnect=self._on_disconnected
             )
 
-        # ── BURASI DEĞİŞTİ ──────────────────────────
+        # Run connect() in a background thread so the UI doesn't freeze
         import threading
 
         def _connect():
             ok = self._client.connect()
-            self.root.after(0, lambda: self._after_connect(ok))
+            self.root.after(0, lambda: self._after_connect(ok))  # return to UI thread
 
         threading.Thread(target=_connect, daemon=True).start()
-        # ────────────────────────────────────────────
-
 
     def _after_connect(self, ok: bool):
+        """Called on the UI thread after the connection attempt finishes."""
         if not ok:
-            messagebox.showerror("Bağlantı Hatası", "Server'a bağlanılamadı.")
+            messagebox.showerror("Connection Error", "Could not connect to server.")
             return
 
+        # Send username as the first message — server uses it for registration
         self._client.send(self.username)
-        # Chat ekranını BURADA AÇMA, _process_message'da açacağız
+        # Don't open chat screen yet — wait for the welcome message from server
 
-
-    # ── Mesaj alma ───────────────────────────────────────────
+    # ── Incoming messages ────────────────────────────────────
 
     def _on_message(self, raw: str):
-        """Network thread'inden gelen mesajı GUI thread'ine ilet."""
+        """Receive a raw message from the network thread and forward to UI thread."""
         self.root.after(0, self._process_message, raw)
 
     def _process_message(self, raw: str):
+        """Process a raw server message on the UI thread."""
+
+        # Chat screen not open yet — we're still in the login/registration phase
         if not self._chat:
             if "zaten sohbet odasinda" in raw:
+                # Username already taken — disconnect and show error
                 self._client.disconnect()
                 self._client = None
-                messagebox.showerror("Hata", "Bu kullanıcı adı zaten kullanımda!")
+                messagebox.showerror("Error", "This username is already in use!")
                 return
-            
+
             if "Hosgeldiniz" in raw and "baglisiniz" in raw:
-                # Hoşgeldin mesajı geldi, şimdi chat ekranını aç
+                # Welcome message received — registration successful, open chat screen
                 self._login_screen.place_forget()
                 self._chat = ChatScreen(
                     self.root,
@@ -114,35 +119,39 @@ class App:
                     on_send=self._on_send,
                     on_disconnect=self._on_user_disconnect
                 )
-                # Hoşgeldin mesajını chat'e yaz
+                # Show the welcome message in the chat area
                 parsed = detect_message_type(raw)
                 self._chat.append_message(parsed)
             return
 
+        # Filter out server prompts that shouldn't appear in chat
         if "Kullanici adinizi giriniz" in raw:
             return
 
         parsed = detect_message_type(raw)
+
         if parsed["type"] == "userlist":
+            # Update both the local cache and the sidebar
             self._online_users = parsed["users"]
             self._chat.update_users(parsed["users"])
             return
 
         self._chat.append_message(parsed)
 
-    # ── Mesaj gönderme ───────────────────────────────────────
+    # ── Sending messages ─────────────────────────────────────
 
     def _on_send(self, text: str):
+        """Called by ChatScreen when the user sends a message."""
         if not self._client or not self._client.is_connected:
             return
 
         now = __import__("datetime").datetime.now().strftime("%H:%M")
 
-        # Private mesaj mı?
         if is_private(text):
             target, body = parse_private(text)
-    
-            # Userlist'ten gerçek ismi bul (case-insensitive eşleştir)
+
+            # Match target against online users (case-insensitive)
+            # to get the correctly cased username
             real_target = None
             for user_str in self._online_users:
                 name = user_str.split("[")[0]
@@ -150,26 +159,26 @@ class App:
                     real_target = name
                     break
 
+            # Target user not found in online list
             if real_target is None:
                 self._chat.append_message({
                     "type": "system",
-                    "body": f"Kullanıcı bulunamadı: {target}",
-                    "ts"  : __import__("datetime").datetime.now().strftime("%H:%M"),
-                })
-                return
-            
-            # Kendine PM engeli
-            if target == self.username.lower():
-                self._chat.append_message({
-                    "type": "system",
-                    "body": "Kendinize özel mesaj atamazsınız.",
+                    "body": f"User not found: {target}",
                     "ts"  : __import__("datetime").datetime.now().strftime("%H:%M"),
                 })
                 return
 
-            cmd = format_private_cmd(target, body)
-            self._client.send(cmd)
-            # Kendi ekranına göster (giden PM)
+            # Prevent sending a PM to yourself
+            if real_target.lower() == self.username.lower():
+                self._chat.append_message({
+                    "type": "system",
+                    "body": "You cannot send a private message to yourself.",
+                    "ts"  : __import__("datetime").datetime.now().strftime("%H:%M"),
+                })
+                return
+
+            # Send PM command to server and show it locally
+            self._client.send(format_private_cmd(real_target, body))
             self._chat.append_message({
                 "type"    : "pm",
                 "sender"  : self.username,
@@ -178,9 +187,10 @@ class App:
                 "body"    : body,
                 "ts"      : now,
             })
+
         else:
+            # Public message — send to server and show locally
             self._client.send(text)
-            # Kendi mesajını kendin ekrana ekle
             self._chat.append_message({
                 "type"    : "chat",
                 "sender"  : self.username,
@@ -188,49 +198,52 @@ class App:
                 "body"    : text,
                 "ts"      : now,
             })
-            
 
-    # ── Bağlantı kesme ───────────────────────────────────────
+    # ── Disconnection ────────────────────────────────────────
 
     def _on_user_disconnect(self):
-        """Kullanıcı 'AYRIL' butonuna bastı."""
+        """Called when the user clicks the DISCONNECT button."""
         if self._client:
-            # TCP için ayrılma mesajı server protokol akışıyla yönetiliyor;
-            # socket kapanınca server zaten temizliyor.
-            # UDP için "Gorusuruz" göndermek gerekiyor; disconnect() hallediyor.
+            # TCP: server detects disconnect automatically when socket closes
+            # UDP: disconnect() closes the socket; server removes via timeout
             self._client.disconnect()
         self._return_to_login()
 
     def _on_disconnected(self):
-        """Network thread: bağlantı koptu."""
-        self.root.after(0, self._handle_disconnect)
+        """Called by the network thread when connection is lost unexpectedly."""
+        self.root.after(0, self._handle_disconnect)  # forward to UI thread
 
     def _handle_disconnect(self):
+        """Show disconnection message and disable input."""
         if self._chat:
             self._chat.set_disconnected_mode()
             self._chat.append_message({
                 "type": "system",
-                "body": "Bağlantı kesildi. Ana ekrana dönmek için AYRIL butonuna basın.",
+                "body": "Connection lost. Press DISCONNECT to return to login.",
                 "ts"  : __import__("datetime").datetime.now().strftime("%H:%M"),
             })
 
     def _return_to_login(self):
+        """Destroy the chat screen and show the login screen again."""
         if self._chat:
             self._chat.place_forget()
             self._chat.destroy()
             self._chat = None
         self._client = None
-        # Login ekranını yeniden oluştur
+        # Re-create login screen so all fields are reset
         self._login_screen = LoginScreen(self.root, on_connect=self._on_login)
 
-    # ── Kapatma ──────────────────────────────────────────────
+    # ── Close ────────────────────────────────────────────────
 
     def _on_close(self):
+        """Handle window close — disconnect before destroying the window."""
         if self._client:
             self._client.disconnect()
         self.root.destroy()
 
-    # ── Çalıştır ─────────────────────────────────────────────
+    # ── Run ──────────────────────────────────────────────────
 
     def run(self):
+        """Start the Tkinter event loop."""
         self.root.mainloop()
+        
