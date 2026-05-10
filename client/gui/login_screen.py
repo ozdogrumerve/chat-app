@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────
-#  gui/login_screen.py  –  Giriş Ekranı
+#  gui/login_screen.py  –  Login Screen
 # ─────────────────────────────────────────────
 
 import tkinter as tk
@@ -9,36 +9,38 @@ from . import theme as T
 
 class LoginScreen(tk.Frame):
     """
-    Protokol seçimi (TCP / UDP), kullanıcı adı,
-    host ve port girişi yapılan ekran.
-    on_connect(username, protocol, host, tcp_port, udp_port)
+    Login screen for protocol selection (TCP / UDP),
+    username, host and port configuration.
+    Calls on_connect(username, protocol, host, tcp_port, udp_port) on submit.
     """
 
     def __init__(self, master, on_connect):
         super().__init__(master, bg=T.BG_DARK)
-        self.on_connect = on_connect
+        self.on_connect = on_connect  # callback fired when user clicks Connect
         self._build()
 
     def _build(self):
+        # Fill the entire parent window
         self.place(relx=0, rely=0, relwidth=1, relheight=1)
 
-        # ── Merkez kart ──────────────────────────────────────
+        # ── Center card ──────────────────────────────────────
         card = tk.Frame(self, bg=T.BG_PANEL, padx=40, pady=36)
         card.place(relx=0.5, rely=0.5, anchor="center")
 
-        # Başlık
+        # App title
         tk.Label(
             card, text="◈  TCHAT", font=("Consolas", 22, "bold"),
             fg=T.ACCENT, bg=T.BG_PANEL
         ).grid(row=0, column=0, columnspan=2, pady=(0, 4))
 
+        # Subtitle
         tk.Label(
             card, text="TCP / UDP Chat Application",
             font=T.FONT_UI_S, fg=T.TEXT_SECONDARY, bg=T.BG_PANEL
         ).grid(row=1, column=0, columnspan=2, pady=(0, 28))
 
-        # ── Protokol ─────────────────────────────────────────
-        self._protocol = tk.StringVar(value="TCP")
+        # ── Protocol selection ────────────────────────────────
+        self._protocol = tk.StringVar(value="TCP")  # default: TCP
 
         tk.Label(
             card, text="PROTOCOL", font=T.FONT_SMALL,
@@ -48,6 +50,7 @@ class LoginScreen(tk.Frame):
         proto_frame = tk.Frame(card, bg=T.BG_PANEL)
         proto_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(0, 20))
 
+        # TCP and UDP radio buttons styled as toggle buttons
         for text, val, color in [("TCP", "TCP", T.ACCENT_TCP), ("UDP", "UDP", T.ACCENT_UDP)]:
             btn = tk.Radiobutton(
                 proto_frame, text=text, variable=self._protocol, value=val,
@@ -57,24 +60,24 @@ class LoginScreen(tk.Frame):
                 activebackground=T.BG_HOVER, activeforeground=color,
                 relief="flat", cursor="hand2",
                 padx=20, pady=8,
-                indicatoron=False,
+                indicatoron=False,  # hide radio indicator; looks like a button
                 bd=0
             )
             btn.pack(side="left", padx=(0, 8))
 
-        # ── Host ─────────────────────────────────────────────
+        # ── Host input ───────────────────────────────────────
         self._host = self._field(card, "HOST", "127.0.0.1", row=4)
 
-        # ── TCP Port ─────────────────────────────────────────
+        # ── TCP port input ───────────────────────────────────
         self._tcp_port = self._field(card, "TCP PORT", "12345", row=6)
 
-        # ── UDP Port ─────────────────────────────────────────
+        # ── UDP port input ───────────────────────────────────
         self._udp_port = self._field(card, "UDP PORT", "12346", row=8)
 
-        # ── Kullanıcı Adı ─────────────────────────────────────
+        # ── Username input ───────────────────────────────────
         self._username = self._field(card, "USERNAME", "", row=10, focus=True)
 
-        # ── Bağlan Butonu ─────────────────────────────────────
+        # ── Connect button ───────────────────────────────────
         connect_btn = tk.Button(
             card, text="CONNECT  →",
             font=("Consolas", 12, "bold"),
@@ -86,17 +89,17 @@ class LoginScreen(tk.Frame):
         )
         connect_btn.grid(row=12, column=0, columnspan=2, sticky="ew", pady=(24, 0))
 
-        # Enter tuşu
+        # Allow pressing Enter from the username field to connect
         self._username.bind("<Return>", lambda _: self._attempt_connect())
 
-        # Alt bilgi
+        # Bottom hint for private messaging syntax
         tk.Label(
             card, text="@USER message  →  private message",
             font=T.FONT_SMALL, fg=T.TEXT_MUTED, bg=T.BG_PANEL
         ).grid(row=13, column=0, columnspan=2, pady=(14, 0))
 
     def _field(self, parent, label: str, placeholder: str, row: int, focus=False):
-        """Label + Entry çifti oluşturur, Entry'yi döndürür."""
+        """Create a label + entry pair and return the entry widget."""
         tk.Label(
             parent, text=label, font=T.FONT_SMALL,
             fg=T.TEXT_SECONDARY, bg=T.BG_PANEL
@@ -112,33 +115,37 @@ class LoginScreen(tk.Frame):
             bd=0,
             width=30,
         )
-        entry.insert(0, placeholder)
+        entry.insert(0, placeholder)  # pre-fill with default value
         entry.grid(row=row + 1, column=0, columnspan=2, sticky="ew", ipady=8, pady=(0, 14))
 
         if focus:
             entry.focus_set()
-            entry.delete(0, "end")
+            entry.delete(0, "end")  # clear placeholder so user can type immediately
 
         return entry
 
     def _attempt_connect(self):
+        """Validate inputs and fire the on_connect callback."""
         username = self._username.get().strip()
         host     = self._host.get().strip()
         proto    = self._protocol.get()
 
+        # Validate port numbers
         try:
             tcp_port = int(self._tcp_port.get().strip())
             udp_port = int(self._udp_port.get().strip())
         except ValueError:
-            messagebox.showerror("Hata", "Port numbers should be valid.")
+            messagebox.showerror("Error", "Port numbers should be valid.")
             return
 
+        # Validate username
         if not username:
-            messagebox.showerror("Hata", "Username cannot be empty.")
+            messagebox.showerror("Error", "Username cannot be empty.")
             return
 
+        # Validate host
         if not host:
-            messagebox.showerror("Hata", "Host address cannot be empty.")
+            messagebox.showerror("Error", "Host address cannot be empty.")
             return
 
         self.on_connect(username, proto, host, tcp_port, udp_port)
