@@ -57,14 +57,14 @@ class ChatScreen(tk.Frame):
 
         # Connection status indicator (right side)
         self._status_lbl = tk.Label(
-            topbar, text="● Bağlı",
+            topbar, text="● Connected",
             font=T.FONT_UI_S, fg=T.SUCCESS, bg=T.BG_PANEL
         )
         self._status_lbl.pack(side="right", padx=18)
 
         # Disconnect button — triggers on_disconnect callback
         disc_btn = tk.Button(
-            topbar, text="AYRIL",
+            topbar, text="DISCONNECT",
             font=("Consolas", 9, "bold"),
             fg=T.DANGER, bg=T.BG_PANEL,
             activeforeground=T.BG_DARK, activebackground=T.DANGER,
