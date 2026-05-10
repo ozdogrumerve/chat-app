@@ -63,7 +63,7 @@ def detect_message_type(raw: str):
 
     # ── Join event ───────────────────────────────────────
     # Format: "Username - [TCP] ile sohbet odasina katildi."
-    join_match = re.match(r"^(.+) - \[(\w+)\] ile sohbet odasina katildi\.$", raw)
+    join_match = re.match(r"^(.+) - \[(\w+)\] joined the chat room\.$", raw)
     if join_match:
         return {
             "type"    : "join",
@@ -75,7 +75,7 @@ def detect_message_type(raw: str):
 
     # ── Leave event ──────────────────────────────────────
     # Format: "Username - [TCP] sohbet odasindan ayrildi"
-    leave_match = re.match(r"^(.+) - \[(\w+)\] sohbet odasindan ayrildi$", raw)
+    leave_match = re.match(r"^(.+) - \[(\w+)\] left the chat room$", raw)
     if leave_match:
         return {
             "type"    : "leave",
