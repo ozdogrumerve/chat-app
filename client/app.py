@@ -21,6 +21,7 @@ class App:
 
     def __init__(self):
         self.root = tk.Tk()
+        self._online_users = []  # ["Merve[TCP]", "Serhat[TCP]", ...]
         self._setup_window()
 
         self.username : str       = ""
@@ -123,6 +124,7 @@ class App:
 
         parsed = detect_message_type(raw)
         if parsed["type"] == "userlist":
+            self._online_users = parsed["users"]
             self._chat.update_users(parsed["users"])
             return
 
@@ -139,6 +141,32 @@ class App:
         # Private mesaj mı?
         if is_private(text):
             target, body = parse_private(text)
+    
+            # Userlist'ten gerçek ismi bul (case-insensitive eşleştir)
+            real_target = None
+            for user_str in self._online_users:
+                name = user_str.split("[")[0]
+                if name.lower() == target.lower():
+                    real_target = name
+                    break
+
+            if real_target is None:
+                self._chat.append_message({
+                    "type": "system",
+                    "body": f"Kullanıcı bulunamadı: {target}",
+                    "ts"  : __import__("datetime").datetime.now().strftime("%H:%M"),
+                })
+                return
+            
+            # Kendine PM engeli
+            if target == self.username.lower():
+                self._chat.append_message({
+                    "type": "system",
+                    "body": "Kendinize özel mesaj atamazsınız.",
+                    "ts"  : __import__("datetime").datetime.now().strftime("%H:%M"),
+                })
+                return
+
             cmd = format_private_cmd(target, body)
             self._client.send(cmd)
             # Kendi ekranına göster (giden PM)

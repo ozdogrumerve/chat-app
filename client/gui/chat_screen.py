@@ -255,7 +255,7 @@ class ChatScreen(tk.Frame):
         """Show a live hint when the user is typing a private message."""
         text = self._input.get()
         if text.startswith("@") and " " not in text:
-            self._pm_hint.config(text="PM: @kullanıcı mesaj")
+            self._pm_hint.config(text="PM: @user message")
         elif text.startswith("@") and " " in text:
             target = text.split(" ", 1)[0][1:]
             self._pm_hint.config(text=f"→ @{target}")
