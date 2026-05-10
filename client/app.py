@@ -173,7 +173,7 @@ class App:
             self._chat.append_message({
                 "type"    : "pm",
                 "sender"  : self.username,
-                "target"  : target,
+                "target"  : real_target,
                 "protocol": self.protocol,
                 "body"    : body,
                 "ts"      : now,
