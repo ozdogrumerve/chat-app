@@ -135,7 +135,7 @@ def remove_tcp_client(client_socket):
         client_socket.close()
     except Exception:
         pass
-    msg = f"{username} [TCP] left the chat room"
+    msg = f"{username} - [TCP] left the chat room"
     print(msg)
     broadcast(msg)
     broadcast_userlist()
@@ -257,7 +257,7 @@ def remove_udp_client(client_address):
             return
         username = udp_clients[client_address]["username"]
         del udp_clients[client_address]
-    msg = f"{username} [UDP] left the chat room"
+    msg = f"{username} - [UDP] left the chat room"
     print(msg)
     broadcast(msg, sender_type="UDP", sender_address=client_address)
     broadcast_userlist()
