@@ -33,7 +33,7 @@ class LoginScreen(tk.Frame):
         ).grid(row=0, column=0, columnspan=2, pady=(0, 4))
 
         tk.Label(
-            card, text="TCP / UDP Chat Uygulaması",
+            card, text="TCP / UDP Chat Application",
             font=T.FONT_UI_S, fg=T.TEXT_SECONDARY, bg=T.BG_PANEL
         ).grid(row=1, column=0, columnspan=2, pady=(0, 28))
 
@@ -41,7 +41,7 @@ class LoginScreen(tk.Frame):
         self._protocol = tk.StringVar(value="TCP")
 
         tk.Label(
-            card, text="PROTOKOL", font=T.FONT_SMALL,
+            card, text="PROTOCOL", font=T.FONT_SMALL,
             fg=T.TEXT_SECONDARY, bg=T.BG_PANEL
         ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(0, 6))
 
@@ -72,11 +72,11 @@ class LoginScreen(tk.Frame):
         self._udp_port = self._field(card, "UDP PORT", "12346", row=8)
 
         # ── Kullanıcı Adı ─────────────────────────────────────
-        self._username = self._field(card, "KULLANICI ADI", "", row=10, focus=True)
+        self._username = self._field(card, "USERNAME", "", row=10, focus=True)
 
         # ── Bağlan Butonu ─────────────────────────────────────
         connect_btn = tk.Button(
-            card, text="BAĞLAN  →",
+            card, text="CONNECT  →",
             font=("Consolas", 12, "bold"),
             fg=T.BG_DARK, bg=T.ACCENT,
             activeforeground=T.BG_DARK, activebackground=T.ACCENT_DIM,
@@ -91,7 +91,7 @@ class LoginScreen(tk.Frame):
 
         # Alt bilgi
         tk.Label(
-            card, text="@kullanici mesaj  →  private mesaj",
+            card, text="@USER message  →  private message",
             font=T.FONT_SMALL, fg=T.TEXT_MUTED, bg=T.BG_PANEL
         ).grid(row=13, column=0, columnspan=2, pady=(14, 0))
 
@@ -130,15 +130,15 @@ class LoginScreen(tk.Frame):
             tcp_port = int(self._tcp_port.get().strip())
             udp_port = int(self._udp_port.get().strip())
         except ValueError:
-            messagebox.showerror("Hata", "Port numaraları geçerli bir sayı olmalıdır.")
+            messagebox.showerror("Hata", "Port numbers should be valid.")
             return
 
         if not username:
-            messagebox.showerror("Hata", "Kullanıcı adı boş bırakılamaz.")
+            messagebox.showerror("Hata", "Username cannot be empty.")
             return
 
         if not host:
-            messagebox.showerror("Hata", "Host adresi boş bırakılamaz.")
+            messagebox.showerror("Hata", "Host address cannot be empty.")
             return
 
         self.on_connect(username, proto, host, tcp_port, udp_port)

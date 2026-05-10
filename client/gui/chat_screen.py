@@ -148,7 +148,7 @@ class ChatScreen(tk.Frame):
         self._input.bind("<KeyRelease>", self._update_pm_hint)
 
         send_btn = tk.Button(
-            input_bar, text="GÖNDER",
+            input_bar, text="SEND",
             font=("Consolas", 10, "bold"),
             fg=T.BG_DARK, bg=T.ACCENT,
             activeforeground=T.BG_DARK, activebackground=T.ACCENT_DIM,
@@ -210,7 +210,7 @@ class ChatScreen(tk.Frame):
         self._insert("body",   body + "\n")
 
     def _append_pm(self, p):
-        is_outgoing = (p.get("sender", "") == self.username)  # DÜZELTME: target değil sender
+        is_outgoing = (p.get("sender", "") == self.username)  
         ts_text = f" {p['ts']} "
         label   = f"[PM → {p.get('target','')}]" if is_outgoing else f"[PM ← {p['sender']}]"
 
@@ -266,9 +266,9 @@ class ChatScreen(tk.Frame):
 
     def set_status(self, connected: bool):
         if connected:
-            self._status_lbl.config(text="● Bağlı", fg=T.SUCCESS)
+            self._status_lbl.config(text="● Connected", fg=T.SUCCESS)
         else:
-            self._status_lbl.config(text="● Bağlantı Kesildi", fg=T.DANGER)
+            self._status_lbl.config(text="● Disconnected", fg=T.DANGER)
 
     def set_disconnected_mode(self):
         """Bağlantı kesildikten sonra input'u kapat."""
